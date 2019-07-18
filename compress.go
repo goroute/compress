@@ -31,8 +31,10 @@ const (
 	gzipScheme = "gzip"
 )
 
+// Option defines option func.
 type Option func(*Options)
 
+// GetDefaultOptions returns default options.
 func GetDefaultOptions() Options {
 	return Options{
 		Skipper: route.DefaultSkipper,
@@ -40,12 +42,14 @@ func GetDefaultOptions() Options {
 	}
 }
 
+// Skipper sets skipper option.
 func Skipper(skipper route.Skipper) Option {
 	return func(o *Options) {
 		o.Skipper = skipper
 	}
 }
 
+// Level sets level option.
 func Level(level int) Option {
 	return func(o *Options) {
 		o.Level = level
