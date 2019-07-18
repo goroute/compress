@@ -60,38 +60,36 @@ func New(options ...Option) route.MiddlewareFunc {
 		opt(&opts)
 	}
 
-	return func(next route.HandlerFunc) route.HandlerFunc {
-		return func(c route.Context) error {
-			if opts.Skipper(c) {
-				return next(c)
-			}
-
-			res := c.Response()
-			res.Header().Add(route.HeaderVary, route.HeaderAcceptEncoding)
-			if strings.Contains(c.Request().Header.Get(route.HeaderAcceptEncoding), gzipScheme) {
-				res.Header().Set(route.HeaderContentEncoding, gzipScheme)
-				rw := res.Writer
-				w, err := gzip.NewWriterLevel(rw, opts.Level)
-				if err != nil {
-					return err
-				}
-				defer func() {
-					if res.Size == 0 {
-						if res.Header().Get(route.HeaderContentEncoding) == gzipScheme {
-							res.Header().Del(route.HeaderContentEncoding)
-						}
-						// We have to reset response to it's pristine state when
-						// nothing is written to body or error is returned.
-						res.Writer = rw
-						w.Reset(ioutil.Discard)
-					}
-					w.Close()
-				}()
-				grw := &gzipResponseWriter{Writer: w, ResponseWriter: rw}
-				res.Writer = grw
-			}
+	return func(c route.Context, next route.HandlerFunc) error {
+		if opts.Skipper(c) {
 			return next(c)
 		}
+
+		res := c.Response()
+		res.Header().Add(route.HeaderVary, route.HeaderAcceptEncoding)
+		if strings.Contains(c.Request().Header.Get(route.HeaderAcceptEncoding), gzipScheme) {
+			res.Header().Set(route.HeaderContentEncoding, gzipScheme)
+			rw := res.Writer
+			w, err := gzip.NewWriterLevel(rw, opts.Level)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if res.Size == 0 {
+					if res.Header().Get(route.HeaderContentEncoding) == gzipScheme {
+						res.Header().Del(route.HeaderContentEncoding)
+					}
+					// We have to reset response to it's pristine state when
+					// nothing is written to body or error is returned.
+					res.Writer = rw
+					w.Reset(ioutil.Discard)
+				}
+				w.Close()
+			}()
+			grw := &gzipResponseWriter{Writer: w, ResponseWriter: rw}
+			res.Writer = grw
+		}
+		return next(c)
 	}
 }
 

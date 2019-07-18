@@ -20,11 +20,12 @@ func TestGzip(t *testing.T) {
 	c := mux.NewContext(req, rec)
 
 	// Skip if no Accept-Encoding header
-	h := New()(func(c route.Context) error {
+	h := func(c route.Context) error {
 		c.Response().Write([]byte("test")) // For Content-Type sniffing
 		return nil
-	})
-	h(c)
+	}
+	mw := New()
+	mw(c, h)
 
 	assert := assert.New(t)
 
@@ -35,7 +36,7 @@ func TestGzip(t *testing.T) {
 	req.Header.Set(route.HeaderAcceptEncoding, gzipScheme)
 	rec = httptest.NewRecorder()
 	c = mux.NewContext(req, rec)
-	h(c)
+	mw(c, h)
 	assert.Equal(gzipScheme, rec.Header().Get(route.HeaderContentEncoding))
 	assert.Contains(rec.Header().Get(route.HeaderContentType), route.MIMETextPlain)
 	r, err := gzip.NewReader(rec.Body)
@@ -53,7 +54,7 @@ func TestGzip(t *testing.T) {
 	rec = httptest.NewRecorder()
 
 	c = mux.NewContext(req, rec)
-	_ = New()(func(c route.Context) error {
+	_ = New()(c, func(c route.Context) error {
 		c.Response().Header().Set("Content-Type", "text/event-stream")
 		c.Response().Header().Set("Transfer-Encoding", "chunked")
 
@@ -81,7 +82,7 @@ func TestGzip(t *testing.T) {
 		// Write the final part of the data and return
 		c.Response().Write([]byte("test"))
 		return nil
-	})(c)
+	})
 
 	buf := new(bytes.Buffer)
 	defer r.Close()
@@ -95,10 +96,11 @@ func TestGzipNoContent(t *testing.T) {
 	req.Header.Set(route.HeaderAcceptEncoding, gzipScheme)
 	rec := httptest.NewRecorder()
 	c := mux.NewContext(req, rec)
-	h := New()(func(c route.Context) error {
+	h := func(c route.Context) error {
 		return c.NoContent(http.StatusNoContent)
-	})
-	if assert.NoError(t, h(c)) {
+	}
+	mw := New()
+	if assert.NoError(t, mw(c, h)) {
 		assert.Empty(t, rec.Header().Get(route.HeaderContentEncoding))
 		assert.Empty(t, rec.Header().Get(route.HeaderContentType))
 		assert.Equal(t, 0, len(rec.Body.Bytes()))
